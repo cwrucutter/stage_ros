@@ -63,6 +63,7 @@
 #define BASE_POSE_GROUND_TRUTH "base_pose_ground_truth"
 #define CMD_VEL "cmd_vel"
 #define CMD_POSE "cmd_pose"
+#define CMD_SIZE "cmd_size"
 
 // Our node
 class StageNode
@@ -99,6 +100,7 @@ private:
 
         ros::Subscriber cmdvel_sub; //one cmd_vel subscriber
         ros::Subscriber cmdpose_sub; //one pos subscriber
+        ros::Subscriber cmdsize_sub; //one pos subscriber
     };
 
     std::vector<StageRobot const *> robotmodels_;
@@ -166,6 +168,9 @@ public:
 
     // Message callback for a Pose2D message, which sets pose.
     void cmdposeReceived(int idx, const boost::shared_ptr<geometry_msgs::Pose2D const>& msg);
+
+    // Message callback for a Vector3 message, which sets size.
+    void cmdsizeReceived(int idx, const boost::shared_ptr<geometry_msgs::Vector3 const>& msg);
 
     // Service callback for soft reset
     bool cb_reset_srv(std_srvs::Empty::Request& request, std_srvs::Empty::Response& response);
@@ -284,6 +289,18 @@ StageNode::cmdposeReceived(int idx, const boost::shared_ptr<geometry_msgs::Pose2
   this->positionmodels[idx]->SetPose(pose);
 }
 
+void
+StageNode::cmdsizeReceived(int idx, const boost::shared_ptr<geometry_msgs::Vector3  const>& msg)
+{
+  boost::mutex::scoped_lock lock(msg_lock);
+  Stg::Geom geom;
+  geom.pose = this->positionmodels[idx]->GetPose(); // Leave the pose the same.
+  geom.size.x = msg->x;        // Just change the size.
+  geom.size.y = msg->y;
+  geom.size.z = msg->z;
+  this->positionmodels[idx]->SetGeom(geom);
+}
+
 StageNode::StageNode(int argc, char** argv, bool gui, const char* fname, bool use_model_names)
 {
     this->use_model_names = use_model_names;
@@ -373,6 +390,7 @@ StageNode::SubscribeModels()
         new_robot->ground_truth_pub = n_.advertise<nav_msgs::Odometry>(mapName(BASE_POSE_GROUND_TRUTH, r, static_cast<Stg::Model*>(new_robot->positionmodel)), 10);
         new_robot->cmdvel_sub = n_.subscribe<geometry_msgs::Twist>(mapName(CMD_VEL, r, static_cast<Stg::Model*>(new_robot->positionmodel)), 10, boost::bind(&StageNode::cmdvelReceived, this, r, _1));
         new_robot->cmdpose_sub = n_.subscribe<geometry_msgs::Pose2D>(mapName(CMD_POSE, r, static_cast<Stg::Model*>(new_robot->positionmodel)), 10, boost::bind(&StageNode::cmdposeReceived, this, r, _1));
+        new_robot->cmdsize_sub = n_.subscribe<geometry_msgs::Vector3>(mapName(CMD_SIZE, r, static_cast<Stg::Model*>(new_robot->positionmodel)), 10, boost::bind(&StageNode::cmdsizeReceived, this, r, _1));
 
         for (size_t s = 0;  s < new_robot->lasermodels.size(); ++s)
         {
