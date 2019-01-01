@@ -1,2 +1,7 @@
 build
 .svn
+GPATH
+GTAGS
+GRTAGS
+
+\#*\#
